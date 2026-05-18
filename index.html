@@ -3,19 +3,18 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>SpacExplore — Deep Space Voyager</title>
+  <title>SpacExplore — Navigate the Universe</title>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
       --hud: rgba(0, 200, 255, 0.85);
       --hud-dim: rgba(0, 200, 255, 0.35);
-      --hud-bg: rgba(0, 5, 15, 0.92);
+      --hud-bg: rgba(0, 10, 30, 0.88);
       --accent: #00c8ff;
       --warn: #ff6b35;
     }
-
     html, body {
       width: 100%; height: 100%;
       background: #000;
@@ -24,492 +23,304 @@
       color: white;
       cursor: crosshair;
     }
-
     canvas { display: block; }
 
-    /* ── HUD HEADER ── */
     #hud-header {
       position: fixed; top: 0; left: 0; right: 0;
-      padding: 1.5rem 2rem;
+      padding: 1rem 2rem;
       display: flex; align-items: center; justify-content: space-between;
-      background: linear-gradient(to bottom, rgba(0,2,10,0.95) 0%, transparent 100%);
+      background: linear-gradient(to bottom, rgba(0,5,20,0.9), transparent);
       z-index: 10; pointer-events: none;
     }
     .logo {
       font-family: 'Orbitron', monospace;
-      font-size: 1.5rem; font-weight: 900;
-      letter-spacing: 0.2em; color: var(--accent);
-      text-shadow: 0 0 25px rgba(0,200,255,0.5);
+      font-size: 1.6rem; font-weight: 900;
+      letter-spacing: 0.15em; color: var(--accent);
+      text-shadow: 0 0 20px rgba(0,200,255,0.6);
     }
     .logo span { color: white; }
-    .hud-coords {
-      font-family: 'Orbitron', monospace;
-      font-size: 0.7rem; color: var(--hud-dim);
-      letter-spacing: 0.15em; text-align: right;
-      line-height: 1.5;
-    }
 
-    /* ── CONTROLS HINT ── */
     #controls-hint {
       position: fixed; bottom: 1.5rem; left: 50%;
       transform: translateX(-50%);
       display: flex; gap: 2rem;
-      background: rgba(0,5,15,0.8);
-      border: 1px solid rgba(0,200,255,0.15);
-      padding: 0.6rem 1.8rem; border-radius: 2rem;
-      backdrop-filter: blur(8px);
-      z-index: 10; pointer-events: none;
+      background: rgba(0,10,30,0.7);
+      border: 1px solid rgba(0,200,255,0.2);
+      padding: 0.6rem 1.5rem; border-radius: 2rem;
+      z-index: 10;
     }
-    .hint {
-      font-size: 0.7rem; color: var(--hud-dim);
-      letter-spacing: 0.1em; text-transform: uppercase;
-    }
-    .hint b { color: var(--accent); font-weight: 500; }
+    .hint { font-size: 0.75rem; color: var(--hud-dim); letter-spacing: 0.08em; text-transform: uppercase; }
+    .hint b { color: var(--accent); }
 
-    /* ── PLANET INFO PANEL ── */
     #info-panel {
       position: fixed; right: 2rem; top: 50%;
       transform: translateY(-50%);
-      width: 320px;
+      width: 340px;
       background: var(--hud-bg);
-      border: 1px solid rgba(0,200,255,0.25);
+      border: 1px solid rgba(0,200,255,0.3);
       border-left: 4px solid var(--accent);
-      padding: 2rem;
-      backdrop-filter: blur(12px);
+      padding: 1.8rem;
       z-index: 20;
       display: none;
-      animation: slideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      border-radius: 6px;
     }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(-50%) translateX(30px); }
-      to   { opacity: 1; transform: translateY(-50%) translateX(0); }
-    }
-    #info-panel.visible { display: block; }
+    #info-panel.visible { display: block; animation: slideIn 0.4s ease; }
+    @keyframes slideIn { from { opacity: 0; transform: translateY(-50%) translateX(40px); } to { opacity: 1; transform: translateY(-50%) translateX(0); } }
 
     .panel-close {
-      position: absolute; top: 1rem; right: 1rem;
+      position: absolute; top: 12px; right: 12px;
       background: none; border: 1px solid var(--hud-dim);
-      color: var(--hud-dim); width: 26px; height: 26px;
-      border-radius: 50%; cursor: pointer; font-size: 0.8rem;
+      color: var(--hud-dim); width: 30px; height: 30px;
+      border-radius: 50%; cursor: pointer; font-size: 1.3rem;
       display: flex; align-items: center; justify-content: center;
-      transition: all 0.2s;
     }
-    .panel-close:hover { border-color: var(--warn); color: var(--warn); background: rgba(255,107,53,0.1); }
+    .panel-name { font-family: 'Orbitron', monospace; font-size: 1.8rem; color: var(--accent); margin: 8px 0; }
+    .panel-desc { line-height: 1.75; color: rgba(255,255,255,0.85); }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .stat { background: rgba(0,200,255,0.08); padding: 10px; border-radius: 4px; border: 1px solid rgba(0,200,255,0.2); }
 
-    .panel-type {
-      font-family: 'Orbitron', monospace;
-      font-size: 0.6rem; letter-spacing: 0.25em;
-      text-transform: uppercase; color: var(--hud-dim);
-      margin-bottom: 0.5rem;
-    }
-    .panel-name {
-      font-family: 'Orbitron', monospace;
-      font-size: 1.8rem; font-weight: 700;
-      color: var(--accent);
-      text-shadow: 0 0 20px rgba(0,200,255,0.3);
-      margin-bottom: 1.2rem;
-      line-height: 1.1;
-    }
-    .panel-divider {
-      height: 1px; background: rgba(0,200,255,0.15);
-      margin: 1.2rem 0;
-    }
-    .panel-desc {
-      font-size: 0.85rem; line-height: 1.8;
-      color: rgba(255,255,255,0.8); font-weight: 300;
-      margin-bottom: 1.5rem;
-    }
-    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
-    .stat {
-      background: rgba(0,200,255,0.04);
-      border: 1px solid rgba(0,200,255,0.12);
-      padding: 0.7rem 0.9rem; border-radius: 4px;
-    }
-    .stat-label {
-      font-family: 'Orbitron', monospace;
-      font-size: 0.5rem; letter-spacing: 0.15em;
-      text-transform: uppercase; color: var(--hud-dim);
-      margin-bottom: 0.2rem;
-    }
-    .stat-value {
-      font-size: 0.85rem; font-weight: 500; color: white;
-    }
-
-    /* ── PLANET LIST ── */
     #planet-list {
-      position: fixed; left: 2rem; top: 50%;
+      position: fixed; left: 1.5rem; top: 50%;
       transform: translateY(-50%);
-      z-index: 10; display: flex; flex-direction: column; gap: 0.6rem;
+      z-index: 10; display: flex; flex-direction: column; gap: 6px;
     }
     .planet-btn {
-      background: rgba(0,5,15,0.7);
-      border: 1px solid rgba(0,200,255,0.15);
-      color: rgba(255,255,255,0.5);
+      background: rgba(0,10,30,0.8);
+      border: 1px solid rgba(0,200,255,0.25);
+      color: rgba(255,255,255,0.8);
       font-family: 'Orbitron', monospace;
-      font-size: 0.65rem; letter-spacing: 0.15em;
-      text-transform: uppercase; padding: 0.6rem 1rem;
-      backdrop-filter: blur(4px);
-      cursor: pointer; transition: all 0.25s; text-align: left;
-      white-space: nowrap;
+      font-size: 0.7rem; letter-spacing: 0.1em;
+      padding: 0.75rem 1.1rem;
+      cursor: pointer; transition: all 0.2s;
     }
     .planet-btn:hover, .planet-btn.active {
+      background: rgba(0,200,255,0.15);
       border-color: var(--accent);
       color: var(--accent);
-      background: rgba(0,200,255,0.06);
-      text-shadow: 0 0 10px rgba(0,200,255,0.4);
     }
 
-    /* ── LOADING SCREEN ── */
     #loading {
       position: fixed; inset: 0;
-      background: #020208;
+      background: #000;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      z-index: 100; transition: opacity 0.6s ease;
+      z-index: 100;
     }
     .loading-logo {
       font-family: 'Orbitron', monospace;
-      font-size: 2.8rem; font-weight: 900;
+      font-size: 3.5rem; font-weight: 900;
       color: var(--accent);
-      text-shadow: 0 0 40px rgba(0,200,255,0.5);
-      letter-spacing: 0.25em; margin-bottom: 0.5rem;
-    }
-    .loading-sub {
-      font-size: 0.8rem; color: var(--hud-dim);
-      letter-spacing: 0.25em; text-transform: uppercase;
-      margin-bottom: 3rem;
-    }
-    .loading-bar-wrap {
-      width: 320px; height: 2px;
-      background: rgba(0,200,255,0.1);
-      border-radius: 2px; overflow: hidden;
-    }
-    .loading-bar {
-      height: 100%; width: 0%;
-      background: var(--accent);
-      box-shadow: 0 0 15px var(--accent);
-    }
-    .loading-text {
-      font-family: 'Orbitron', monospace;
-      font-size: 0.6rem; color: var(--hud-dim);
-      letter-spacing: 0.2em; margin-top: 1.2rem;
-    }
-
-    @media (max-width: 768px) {
-      #info-panel { right: 0.5rem; left: 0.5rem; width: auto; top: auto; bottom: 5rem; transform: none; }
-      #planet-list { display: none; }
+      text-shadow: 0 0 50px rgba(0,200,255,0.8);
     }
   </style>
 </head>
 <body>
 
-<!-- LOADING -->
+<!-- Loading Screen -->
 <div id="loading">
   <div class="loading-logo">SpacExplore</div>
-  <div class="loading-sub">Deep Space Terminal</div>
-  <div class="loading-bar-wrap"><div class="loading-bar" id="load-bar"></div></div>
-  <div class="loading-text" id="load-text">Initializing deep space engine…</div>
+  <div style="margin-top:20px; color:var(--hud-dim); letter-spacing:3px;">EXPLORING THE COSMOS...</div>
 </div>
 
-<!-- HUD HEADER -->
+<!-- HUD -->
 <div id="hud-header">
   <div class="logo">Spac<span>Explore</span></div>
-  <div class="hud-coords" id="coords">
-    SECTOR: EXTRAGALACTIC DEEP FIELD<br>
-    <span id="focus-label">SYSTEM: SOL // FREE ROAM MODE</span>
+  <div style="font-family:'Orbitron',monospace; font-size:0.75rem; color:var(--hud-dim); text-align:right;">
+    SECTOR: SOL SYSTEM<br>
+    <span id="focus-label">FOCUS: FREE ROAM</span>
   </div>
 </div>
 
-<!-- PLANET LIST -->
+<!-- Planet List -->
 <div id="planet-list"></div>
 
-<!-- INFO PANEL -->
+<!-- Info Panel -->
 <div id="info-panel">
   <button class="panel-close" onclick="closePanel()">✕</button>
-  <div class="panel-type" id="p-type"></div>
-  <div class="panel-name" id="p-name"></div>
-  <div class="panel-desc" id="p-desc"></div>
-  <div class="panel-divider"></div>
-  <div class="stat-grid" id="p-stats"></div>
+  <div id="p-type" style="font-size:0.65rem; letter-spacing:2px; color:var(--hud-dim);"></div>
+  <div id="p-name" class="panel-name"></div>
+  <div id="p-desc" class="panel-desc"></div>
+  <div class="panel-divider" style="height:1px;background:rgba(0,200,255,0.25);margin:15px 0;"></div>
+  <div id="p-stats" class="stat-grid"></div>
 </div>
 
-<!-- CONTROLS -->
+<!-- Controls Hint -->
 <div id="controls-hint">
-  <div class="hint"><b>Drag</b> Orbit View</div>
-  <div class="hint"><b>Scroll</b> Warp Distance</div>
-  <div class="hint"><b>Click</b> Intercept Target</div>
+  <div class="hint"><b>DRAG</b> Rotate</div>
+  <div class="hint"><b>SCROLL</b> Zoom</div>
+  <div class="hint"><b>CLICK</b> Planet</div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
-// ══════════════════════════════════════════════
-//  PLANET DATA WITH PHOTOREALISTIC MAP TEXTURES
-// ══════════════════════════════════════════════
+// =============== BODIES DATA ===============
 const BODIES = [
-  {
-    id: 'sun', name: 'The Sun', type: 'Star (G2V)',
-    radius: 6, distance: 0, orbitSpeed: 0, selfRotation: 0.0015,
-    texture: 'https://i.imgur.com/eB9O84w.jpg',
-    isSun: true,
-    desc: 'The Sun is a nearly perfect sphere of hot plasma, heated to incandescence by nuclear fusion reactions in its core. It radiates this energy mainly as light, ultraviolet, and infrared radiation, remaining the primary energy engine of the entire system.',
-    stats: { 'Classification': 'G-Type Main Seq', 'Core Temp': '15,700,000°C', 'Mass': '1.989 × 10^30 kg', 'Luminosity': '3.828 × 10^26 W' }
-  },
-  {
-    id: 'mercury', name: 'Mercury', type: 'Terrestrial Planet',
-    radius: 0.6, distance: 12, orbitSpeed: 0.035, selfRotation: 0.002,
-    texture: 'https://i.imgur.com/8Qe87I5.jpg',
-    desc: 'Mercury is a heavily cratered, dense terrestrial world lacking an atmosphere. Its proximity to the solar core results in violent thermal shifts, making it a stark, barren landscape heavily impacted by cosmic debris.',
-    stats: { 'Diameter': '4,879 km', 'Solar Distance': '57.9M km', 'Atmosphere': 'None', 'Gravity': '3.7 m/s²' }
-  },
-  {
-    id: 'venus', name: 'Venus', type: 'Terrestrial Planet',
-    radius: 0.95, distance: 18, orbitSpeed: 0.025, selfRotation: -0.0015,
-    texture: 'https://i.imgur.com/Z4XpPpa.jpg',
-    desc: 'Venus is choked by an opaque layer of highly reflective sulfuric acid clouds. This creates a hyper-dense carbon dioxide trap, triggering a runaway greenhouse effect that raises surface temperatures to levels capable of melting lead.',
-    stats: { 'Surface Temp': '465°C', 'Pressure': '92 Atmospheres', 'Rotation': 'Retrograde', 'Moons': '0' }
-  },
-  {
-    id: 'earth', name: 'Earth', type: 'Terrestrial World',
-    radius: 1.1, distance: 26, orbitSpeed: 0.02, selfRotation: 0.008,
-    texture: 'https://i.imgur.com/gIp6900.jpg',
-    desc: 'A vibrant planet characterized by dynamic liquid oceans, an oxygen-rich nitrogen atmosphere, and a strong protective magnetosphere. It stands as the only verified planetary cradle harboring complex organic life forms.',
-    stats: { 'Population': '8.1 Billion', 'Orbital Period': '365.25 Days', 'Satellites': '1 (Luna)', 'Water Cover': '70.8%' }
-  },
-  {
-    id: 'mars', name: 'Mars', type: 'Terrestrial Planet',
-    radius: 0.75, distance: 34, orbitSpeed: 0.015, selfRotation: 0.0075,
-    texture: 'https://i.imgur.com/vU9b9w0.jpg',
-    desc: 'Mars is a cold desert world covered in iron oxide dust. It features vast polar ice caps, ancient dried river valleys, and monumental volcanic configurations like Olympus Mons, suggesting an active, liquid-filled historical epoch.',
-    stats: { 'Atmosphere': 'Thin CO2', 'Day Length': '24h 37m', 'Moons': '2', 'Gravity': '3.71 m/s²' }
-  },
-  {
-    id: 'jupiter', name: 'Jupiter', type: 'Gas Giant',
-    radius: 2.8, distance: 48, orbitSpeed: 0.009, selfRotation: 0.015,
-    texture: 'https://i.imgur.com/mQYgAmd.jpg',
-    desc: 'The largest planetary mass in the system. Jupiter is an immense ball of hydrogen and helium gas scored by counter-rotating atmospheric belts and colossal storms, notably the historic Great Red Spot.',
-    stats: { 'Diameter': '139,820 km', 'Moons': '95 Known', 'Magnetic Field': '14x Earth', 'Mass': '317.8 Earths' }
-  },
-  {
-    id: 'saturn', name: 'Saturn', type: 'Gas Giant',
-    radius: 2.3, distance: 64, orbitSpeed: 0.006, selfRotation: 0.013,
-    texture: 'https://i.imgur.com/uNLyof9.jpg',
-    ring: true,
-    desc: 'Famous for its highly extensive, majestic ring system composed of billions of ice fragments, silicates, and space dust. Saturn has a lower density than water and hosts Titan, a moon with a dense nitrogen atmosphere.',
-    stats: { 'Ring Radius': '282,000 km', 'Moons': '146 Confirmed', 'Density': '0.69 g/cm³', 'Wind Speed': '1,800 km/h' }
-  },
-  {
-    id: 'uranus', name: 'Uranus', type: 'Ice Giant',
-    radius: 1.5, distance: 78, orbitSpeed: 0.004, selfRotation: -0.01,
-    texture: 'https://i.imgur.com/pZ6S0bN.jpg',
-    desc: 'An ice giant displaying a smooth, pale cyan appearance due to high atmospheric methane concentration. Uranus uniquely rotates completely on its side, experiencing extreme, decades-long seasonal shifts.',
-    stats: { 'Axial Tilt': '97.77°', 'Avg Temp': '-197°C', 'Moons': '28', 'Core Composition': 'Rock & Ice' }
-  },
-  {
-    id: 'neptune', name: 'Neptune', type: 'Ice Giant',
-    radius: 1.45, distance: 90, orbitSpeed: 0.003, selfRotation: 0.011,
-    texture: 'https://i.imgur.com/6XyKmsK.jpg',
-    desc: 'The most distant primary planet from the solar core. Neptune is an active ice giant buffeted by supersonic winds peaking at 2,100 km/h. Its composition is dominated by water, ammonia, and methane over a dense rocky core.',
-    stats: { 'Orbital Period': '164.8 Yrs', 'Avg Temp': '-201°C', 'Moons': '16', 'Discovery': '1846 (Math)' }
-  }
+  { id: 'sun', name: 'The Sun', type: 'Star', radius: 6, distance: 0, selfRotation: 0.003,
+    desc: 'The heart of our Solar System. A massive ball of plasma providing energy for life on Earth.', stats: {'Age':'4.6 Billion years','Surface Temp':'5,500°C'} },
+  { id: 'mercury', name: 'Mercury', type: 'Terrestrial', radius: 0.8, distance: 14, selfRotation: 0.004,
+    desc: 'Smallest planet with extreme temperature swings.', stats: {'Diameter':'4,879 km','Moons':'0'} },
+  { id: 'venus', name: 'Venus', type: 'Terrestrial', radius: 1.2, distance: 22, selfRotation: -0.002,
+    desc: 'Hottest planet with a toxic, crushing atmosphere.', stats: {'Diameter':'12,104 km','Moons':'0'} },
+  { id: 'earth', name: 'Earth', type: 'Terrestrial', radius: 1.3, distance: 30, selfRotation: 0.02,
+    desc: 'Our home. The only known planet with liquid water and life.', stats: {'Diameter':'12,742 km','Moons':'1'} },
+  { id: 'mars', name: 'Mars', type: 'Terrestrial', radius: 0.9, distance: 42, selfRotation: 0.018,
+    desc: 'The Red Planet. Target for future human colonization.', stats: {'Diameter':'6,779 km','Moons':'2'} },
+  { id: 'jupiter', name: 'Jupiter', type: 'Gas Giant', radius: 3.5, distance: 65, selfRotation: 0.04,
+    desc: 'Largest planet with the Great Red Spot storm.', stats: {'Diameter':'139,820 km','Moons':'95'} },
+  { id: 'saturn', name: 'Saturn', type: 'Gas Giant', radius: 3, distance: 95, selfRotation: 0.038,
+    desc: 'Famous for its beautiful and complex ring system.', stats: {'Diameter':'116,460 km','Moons':'146'} },
+  { id: 'uranus', name: 'Uranus', type: 'Ice Giant', radius: 2.2, distance: 130, selfRotation: -0.02,
+    desc: 'An ice giant that rotates on its side.', stats: {'Diameter':'50,724 km','Moons':'28'} },
+  { id: 'neptune', name: 'Neptune', type: 'Ice Giant', radius: 2.1, distance: 160, selfRotation: 0.025,
+    desc: 'Windiest planet with supersonic winds.', stats: {'Diameter':'49,244 km','Moons':'16'} }
 ];
 
-// ══════════════════════════════════════════════
-//  SCENE, GRAPHICS ENGINE, AND TEXTURE LOADER
-// ══════════════════════════════════════════════
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
-camera.position.set(0, 50, 130);
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 3000);
+camera.position.set(40, 60, 160);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.2;
 document.body.appendChild(renderer.domElement);
 
-const textureLoader = new THREE.TextureLoader();
+const loader = new THREE.TextureLoader();
 
-// Deep Space / Extra-Solar Background
-function createDeepSpaceBackground() {
-  const skyGeo = new THREE.SphereGeometry(1200, 45, 45);
-  const skyTex = textureLoader.load('https://i.imgur.com/7vj4I1G.jpg'); 
-  skyTex.mapping = THREE.EquirectangularReflectionMapping;
-  
-  const skyMat = new THREE.MeshBasicMaterial({
-    map: skyTex,
-    side: THREE.BackSide,
-    transparent: true,
-    opacity: 0.85
-  });
-  const skyBox = new THREE.Mesh(skyGeo, skyMat);
-  scene.add(skyBox);
-}
-createDeepSpaceBackground();
-
-// Lighting Systems
-const sunLight = new THREE.PointLight(0xffffff, 3.0, 800);
+// Lights
+scene.add(new THREE.AmbientLight(0x404060, 0.8));
+const sunLight = new THREE.PointLight(0xffffff, 4.5, 2000);
 scene.add(sunLight);
-const ambient = new THREE.AmbientLight(0x0f1424, 1.2);
-scene.add(ambient);
 
-// Planetary Assembly Line
-const meshMap = {};
-const orbitAngles = {};
-const planetGroup = new THREE.Group();
-scene.add(planetGroup);
+// Deep Space
+const starsGeo = new THREE.BufferGeometry();
+const count = 30000;
+const pos = new Float32Array(count * 3);
+for (let i = 0; i < count * 3; i++) pos[i] = THREE.MathUtils.randFloatSpread(3000);
+starsGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+scene.add(new THREE.Points(starsGeo, new THREE.PointsMaterial({color: 0xffffff, size: 0.7})));
+
+// Create Planets
+const meshes = {};
 
 BODIES.forEach(body => {
-  const geo = new THREE.SphereGeometry(body.radius, 48, 48);
-  let mat;
+  const geo = new THREE.SphereGeometry(body.radius, 64, 64);
+  const textureMap = {
+    sun: 'https://www.solarsystemscope.com/textures/download/2k_sun.jpg',
+    mercury: 'https://www.solarsystemscope.com/textures/download/2k_mercury.jpg',
+    venus: 'https://www.solarsystemscope.com/textures/download/2k_venus_surface.jpg',
+    earth: 'https://www.solarsystemscope.com/textures/download/2k_earth_daymap.jpg',
+    mars: 'https://www.solarsystemscope.com/textures/download/2k_mars.jpg',
+    jupiter: 'https://www.solarsystemscope.com/textures/download/2k_jupiter.jpg',
+    saturn: 'https://www.solarsystemscope.com/textures/download/2k_saturn.jpg',
+    uranus: 'https://www.solarsystemscope.com/textures/download/2k_uranus.jpg',
+    neptune: 'https://www.solarsystemscope.com/textures/download/2k_neptune.jpg'
+  };
 
-  const texture = textureLoader.load(body.texture);
+  const material = new THREE.MeshPhongMaterial({
+    map: loader.load(textureMap[body.id]),
+    shininess: body.id === 'earth' ? 35 : 12
+  });
 
-  if (body.isSun) {
-    mat = new THREE.MeshBasicMaterial({ map: texture });
-  } else {
-    mat = new THREE.MeshStandardMaterial({
-      map: texture,
-      roughness: 0.8,
-      metalness: 0.1,
-    });
-  }
-
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(geo, material);
   mesh.userData = body;
-  orbitAngles[body.id] = Math.random() * Math.PI * 2;
+  meshes[body.id] = mesh;
 
-  if (body.isSun) {
-    mesh.position.set(0, 0, 0);
-    planetGroup.add(mesh);
+  if (body.id === 'sun') mesh.position.set(0, 0, 0);
+  else mesh.position.x = body.distance;
 
-    const glowGeo = new THREE.SphereGeometry(body.radius * 1.25, 32, 32);
-    const glowMat = new THREE.MeshBasicMaterial({
-      color: 0xff8822, transparent: true, opacity: 0.15, side: THREE.BackSide
-    });
-    planetGroup.add(new THREE.Mesh(glowGeo, glowMat));
-  } else {
-    const angle = orbitAngles[body.id];
-    mesh.position.set(Math.cos(angle) * body.distance, 0, Math.sin(angle) * body.distance);
-    planetGroup.add(mesh);
+  scene.add(mesh);
 
-    const orbitGeo = new THREE.RingGeometry(body.distance - 0.05, body.distance + 0.05, 128);
-    const orbitMat = new THREE.MeshBasicMaterial({
-      color: 0x00c8ff, transparent: true, opacity: 0.1, side: THREE.DoubleSide
-    });
-    const orbitMesh = new THREE.Mesh(orbitGeo, orbitMat);
-    orbitMesh.rotation.x = Math.PI / 2;
-    planetGroup.add(orbitMesh);
+  if (body.id === 'saturn') {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(4.8, 7.5, 64),
+      new THREE.MeshBasicMaterial({color: 0xeeeeee, side: THREE.DoubleSide, transparent: true, opacity: 0.85})
+    );
+    ring.rotation.x = Math.PI / 2;
+    mesh.add(ring);
   }
-
-  if (body.ring) {
-    const ringGeo = new THREE.RingGeometry(body.radius * 1.4, body.radius * 2.8, 128);
-    const ringTex = textureLoader.load('https://i.imgur.com/C30HkSg.png');
-    const ringMat = new THREE.MeshBasicMaterial({
-      map: ringTex, transparent: true, opacity: 0.85, side: THREE.DoubleSide
-    });
-    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-    ringMesh.rotation.x = Math.PI / 2;
-    mesh.add(ringMesh);
-  }
-
-  meshMap[body.id] = mesh;
 });
 
-// ══════════════════════════════════════════════
-//  INTERACTIVE NAVIGATION & VECTOR MATH
-// ══════════════════════════════════════════════
+// Click Detection
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-let isDragging = false, prevMouse = { x: 0, y: 0 };
-let spherical = { theta: 0, phi: Math.PI / 3, radius: 140 };
-let targetSpherical = { ...spherical };
-let focusTarget = new THREE.Vector3(0, 0, 0);
-let targetFocus = new THREE.Vector3(0, 0, 0);
-let focusedBody = null;
-
-function updateCamera() {
-  const s = spherical;
-  camera.position.set(
-    focusTarget.x + s.radius * Math.sin(s.phi) * Math.cos(s.theta),
-    focusTarget.y + s.radius * Math.cos(s.phi),
-    focusTarget.z + s.radius * Math.sin(s.phi) * Math.sin(s.theta)
-  );
-  camera.lookAt(focusTarget);
-}
-
-window.addEventListener('mousedown', e => { isDragging = true; prevMouse = { x: e.clientX, y: e.clientY }; });
-window.addEventListener('mouseup', () => isDragging = false);
-window.addEventListener('mousemove', e => {
-  if (!isDragging) return;
-  const dx = e.clientX - prevMouse.x;
-  const dy = e.clientY - prevMouse.y;
-  targetSpherical.theta -= dx * 0.005;
-  targetSpherical.phi = Math.max(0.05, Math.min(Math.PI / 2 - 0.02, targetSpherical.phi - dy * 0.005));
-  prevMouse = { x: e.clientX, y: e.clientY };
-});
-
-window.addEventListener('wheel', e => {
-  targetSpherical.radius = Math.max(12, Math.min(450, targetSpherical.radius + e.deltaY * 0.15));
-}, { passive: true });
-
-window.addEventListener('click', e => {
-  if (e.clientX > window.innerWidth - 340 && document.getElementById('info-panel').classList.contains('visible')) return;
+renderer.domElement.addEventListener('click', (e) => {
   mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
   raycaster.setFromCamera(mouse, camera);
-
-  const meshes = Object.values(meshMap);
-  const intersects = raycaster.intersectObjects(meshes);
-
+  const intersects = raycaster.intersectObjects(Object.values(meshes));
   if (intersects.length > 0) {
-    selectPlanet(intersects[0].object.userData.id);
+    showInfoPanel(intersects[0].object.userData);
   }
 });
 
-// Build HUD Navigation Sidebar
-const listContainer = document.getElementById('planet-list');
-BODIES.forEach(body => {
-  const btn = document.createElement('button');
-  btn.className = 'planet-btn';
-  btn.id = `btn-${body.id}`;
-  btn.textContent = body.name;
-  btn.onclick = () => selectPlanet(body.id);
-  listContainer.appendChild(btn);
-});
-
-function selectPlanet(id) {
-  focusedBody = BODIES.find(b => b.id === id);
+function showInfoPanel(body) {
+  document.getElementById('p-type').textContent = body.type.toUpperCase();
+  document.getElementById('p-name').textContent = body.name;
+  document.getElementById('p-desc').textContent = body.desc;
   
-  document.querySelectorAll('.planet-btn').forEach(b => b.classList.remove('active'));
-  const activeBtn = document.getElementById(`btn-${id}`);
-  if (activeBtn) activeBtn.classList.add('active');
-
-  document.getElementById('focus-label').textContent = `SYSTEM: SOL // TARGET LOCKED: ${focusedBody.name.toUpperCase()}`;
-  
-  document.getElementById('p-type').textContent = focusedBody.type;
-  document.getElementById('p-name').textContent = focusedBody.name;
-  document.getElementById('p-desc').textContent = focusedBody.desc;
-  
-  const statsGrid = document.getElementById('p-stats');
-  statsGrid.innerHTML = '';
-  Object.entries(focusedBody.stats).forEach(([label, value]) => {
-    statsGrid.innerHTML += `<div class="stat"><div class="stat-label">${label}</div><div class="stat-value">${value}</div></div>`;
+  const container = document.getElementById('p-stats');
+  container.innerHTML = '';
+  Object.entries(body.stats).forEach(([k, v]) => {
+    container.innerHTML += `<div class="stat"><div style="font-size:0.6rem;color:var(--hud-dim)">\( {k}</div><div style="font-weight:500"> \){v}</div></div>`;
   });
-
   document.getElementById('info-panel').classList.add('visible');
-  targetSpherical.radius = focusedBody.radius * 5.5;
 }
 
 function closePanel() {
   document.getElementById('info-panel').classList.remove('visible');
-  document.querySelectorAll('.planet-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('focus-label').textContent = 'SYSTEM: SOL // FREE ROAM MODE';
-  focusedBody = null;
-  targetFocus.set(0, 0, 0);
-  targetSpherical.radius = 140;
 }
 
-// ══════════════════════════════════════════════
-//  INITIALIZATION & RENDER SYSTEM TICK LOOP
-// ═════════════
+// Animation
+function animate() {
+  requestAnimationFrame(animate);
+  Object.values(meshes).forEach(m => {
+    m.rotation.y += m.userData.selfRotation || 0.005;
+  });
+  renderer.render(scene, camera);
+}
+animate();
+
+// Drag to Rotate + Scroll Zoom
+let isDragging = false, prevX = 0, prevY = 0;
+
+renderer.domElement.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  const dx = (e.clientX - prevX) * 0.006;
+  const dy = (e.clientY - prevY) * 0.006;
+  camera.position.x += dx * 30;
+  camera.position.z += dy * 25;
+  camera.lookAt(0, 20, 0);
+  prevX = e.clientX; prevY = e.clientY;
+});
+
+renderer.domElement.addEventListener('wheel', e => {
+  camera.position.multiplyScalar(e.deltaY > 0 ? 1.12 : 0.89);
+});
+
+// Resize
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Populate Planet List
+const list = document.getElementById('planet-list');
+BODIES.forEach(body => {
+  if (body.id === 'sun') return;
+  const btn = document.createElement('div');
+  btn.className = 'planet-btn';
+  btn.textContent = body.name;
+  btn.onclick = () => showInfoPanel(body);
+  list.appendChild(btn);
+});
+
+// Remove Loading Screen
+setTimeout(() => {
+  document.getElementById('loading').style.display = 'none';
+}, 1500);
+</script>
+</body>
+</html>
